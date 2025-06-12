@@ -1,1 +1,72 @@
-/venv
+# Python
+# ==============================================================================
+# Byte-compiled / optimized / C extensions
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+# Usually dist/ but behave nicely
+*.spec
+
+
+# Virtual Environments
+# ==============================================================================
+.env
+venv/
+.venv/
+env/
+ENV/
+env.bak
+venv.bak
+
+
+# Temporary & Project-Specific Files
+# ==============================================================================
+# Folders for temporary file storage in this project
+uploads/
+processed/
+
+# Environment variables file (contains secrets)
+.env
+
+
+# IDE / Editor specific
+# ==============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+
+# OS-specific files
+# ==============================================================================
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
