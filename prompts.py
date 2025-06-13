@@ -1,7 +1,7 @@
 # ==============================================================================
 # File: prompts.py
 # ==============================================================================
-# *** UPDATED: Localization prompt removed. Extraction prompt is now primary. ***
+# No changes are needed in this file.
 
 def get_extraction_from_crop_prompt(field_name):
     """
@@ -12,7 +12,7 @@ def get_extraction_from_crop_prompt(field_name):
         "date": (
             "**Objective:** Extract the issue date and standardize it.\n"
             "**Note:** This image is a small crop focusing only on the date area.\n"
-            "**Output Format:** **Strictly YYYY-MM-DD.** Convert all valid inputs to this format."
+            "**Output Format:** **Strictly युवराज-MM-DD.** Convert all valid inputs to this format."
         ),
         "amount_numeric": (
             "**Objective:** Extract the cheque amount written in figures (courtesy amount).\n"

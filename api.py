@@ -3,55 +3,63 @@
 # ==============================================================================
 
 import os
-import uuid
-import zipfile
-import io
+import base64
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from celery.result import AsyncResult
 from config import settings
-# Import the new main workflow task
-from tasks import process_cheque_workflow
+from tasks import process_batch_job
 
-app = FastAPI(title="Cheque Extraction API", version="4.0") 
+app = FastAPI(title="Cheque Extraction Batch API", version="5.0")
 
-@app.post("/extract-zip/", status_code=202)
-async def upload_zip_and_extract(file: UploadFile = File(...)):
-    """Endpoint to upload a ZIP file. It calls the main coordinator task for each image."""
+@app.post("/jobs/", status_code=202)
+async def create_batch_job(file: UploadFile = File(...)):
+    """
+    Endpoint to upload a ZIP file. This creates a single Batch Job and
+    returns a single job_id for the entire batch.
+    """
     if file.content_type not in ["application/zip", "application/x-zip-compressed"]:
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload a ZIP file.")
-    task_ids = []
     try:
         zip_content = await file.read()
-        with zipfile.ZipFile(io.BytesIO(zip_content)) as z:
-            file_list = z.namelist()
-            for filename in file_list:
-                if filename.lower().endswith(('.png', '.jpg', '.jpeg')) and not filename.startswith('__MACOSX'):
-                    image_data = z.read(filename)
-                    unique_id = str(uuid.uuid4())
-                    temp_image_path = os.path.join(settings.UPLOADS_DIR, f"{unique_id}_{os.path.basename(filename)}")
-                    with open(temp_image_path, "wb") as buffer:
-                        buffer.write(image_data)
-                    
-                    # *** CHANGE: Call the main workflow task, not the old one ***
-                    task = process_cheque_workflow.delay(temp_image_path)
-                    task_ids.append(task.id)
-        if not task_ids:
-            raise HTTPException(status_code=400, detail="No valid image files found.")
-        return JSONResponse({"message": f"Processing started for {len(task_ids)} images.", "task_ids": task_ids})
+        zip_content_b64 = base64.b64encode(zip_content).decode('utf-8')
+        
+        # Call the new top-level batch job task
+        task = process_batch_job.delay(zip_content_b64, file.filename)
+        
+        return JSONResponse({
+            "message": "Batch job created successfully. Processing has started.",
+            "job_id": task.id
+        })
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to process ZIP file: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create job: {e}")
 
-@app.get("/results/{task_id}")
-def get_task_result(task_id: str):
-    """Endpoint to check the status and get the result of a single task."""
-    task_result = AsyncResult(task_id, app=process_cheque_workflow.app)
+@app.get("/jobs/{job_id}/status")
+def get_job_status(job_id: str):
+    """Endpoint to check the status of a long-running batch job."""
+    task_result = AsyncResult(job_id, app=process_batch_job.app)
     if not task_result:
-        raise HTTPException(status_code=404, detail="Task not found.")
-    if task_result.ready():
-        if task_result.successful():
-            return JSONResponse({"status": "SUCCESS", "data": task_result.get()})
-        else:
-            return JSONResponse({"status": "FAILURE", "error": str(task_result.info)})
-    else:
-        return JSONResponse({"status": "PENDING"})
+        raise HTTPException(status_code=404, detail="Job not found.")
+        
+    response = {"job_id": job_id, "status": task_result.state}
+    if task_result.info:
+        response.update(task_result.info)
+        
+    return JSONResponse(response)
+
+@app.get("/jobs/{job_id}/results")
+def get_job_results(job_id: str):
+    """
+    Endpoint to download the final aggregated results for a completed job.
+    This returns a JSON Lines file.
+    """
+    task_result = AsyncResult(job_id, app=process_batch_job.app)
+    if not task_result or task_result.state != 'SUCCESS':
+         raise HTTPException(status_code=404, detail="Job not found or not completed.")
+
+    result_file_path = os.path.join(settings.RESULTS_DIR, f"{job_id}.jsonl")
+    
+    if not os.path.exists(result_file_path):
+        raise HTTPException(status_code=404, detail="Result file not found.")
+
+    return FileResponse(result_file_path, media_type="application/json-lines", filename=f"results_{job_id}.jsonl")
