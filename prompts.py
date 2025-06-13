@@ -1,59 +1,52 @@
 # ==============================================================================
 # File: prompts.py
 # ==============================================================================
-# This file stores the detailed field descriptions and the main prompt template.
+# *** UPDATED: Localization prompt removed. Extraction prompt is now primary. ***
 
-def get_prompt_for_fields(field_names):
+def get_extraction_from_crop_prompt(field_name):
     """
-    Constructs a detailed prompt for the specified field names.
+    Creates a prompt that asks Gemini to extract data from a pre-cropped image.
+    This includes the detailed instructions for the specific field.
     """
     field_descriptions = {
         "date": (
             "**Objective:** Extract the issue date and standardize it.\n"
-            "**Primary Location Strategy:** Target the **top-right corner**, typically within designated DD MM YYYY boxes.\n"
+            "**Note:** This image is a small crop focusing only on the date area.\n"
             "**Output Format:** **Strictly YYYY-MM-DD.** Convert all valid inputs to this format."
         ),
         "amount_numeric": (
             "**Objective:** Extract the cheque amount written in figures (courtesy amount).\n"
-            "**Primary Location Strategy:** Target the designated box or area on the **right-middle side**.\n"
-            "**Extraction Method:** Remove any currency symbols (₹, $), thousands separators (,), and trailing characters ('/-').\n"
+            "**Note:** This image is a small crop focusing only on the amount box.\n"
+            "**Extraction Method:** Remove any currency symbols, thousands separators, and trailing characters.\n"
             "**Output:** The cleaned, purely numeric amount string (e.g., '1500.00', '12000')."
         ),
     }
 
-    fields_to_include = [f'"{name}":\n{field_descriptions[name]}' for name in field_names if name in field_descriptions]
-    fields_list_str = "\n\n".join(fields_to_include)
+    description = field_descriptions.get(field_name, "Extract the text content from this image.")
 
-    extraction_prompt = f"""You are an expert AI assistant for high-accuracy information extraction from scanned cheque images. Your task is to meticulously analyze the provided image and extract specific fields.
+    extraction_prompt = f"""You are an expert AI assistant specializing in high-accuracy OCR from pre-cropped images.
 
-**Core Objective:** Extract the following fields from the cheque image: {', '.join(field_names)}.
+**Objective:** Extract the `{field_name}` from this image.
 
-**Field Definitions & Extraction Guidelines:**
-
-{fields_list_str}
+**Field-Specific Guidelines:**
+{description}
 
 **Confidence Scoring:**
-- Assign a confidence score (float, 0.00 to 1.00) for each extracted field.
-- **Mandatory:** Provide a brief justification for any score below 0.95.
-
-**Error Handling:**
-- If a field cannot be found, set its value to `null` and assign a low confidence score (< 0.5).
+- Assign a confidence score (float, 0.00 to 1.00).
+- Provide a brief justification for any score below 0.95.
 
 **Output Format:**
 - Your response **MUST** be a single, valid JSON object.
-- **Do NOT** include any explanatory text or markdown formatting.
-- The JSON must have a top-level key `"extracted_fields"`: an array of objects.
-- Each object must contain: `"field_name"`, `"value"`, `"confidence"`, `"text_segment"`, and `"reason"`.
+- It must contain: `"value"`, `"confidence"`, `"text_segment"`, and `"reason"`.
 
-**Example of one object in the array:**
+**Example Response:**
 {{
-    "field_name": "amount_numeric",
-    "value": "1500.00",
-    "confidence": 0.98,
-    "text_segment": "1500/-",
+    "value": "5000.00",
+    "confidence": 0.99,
+    "text_segment": "5,000/-",
     "reason": null
 }}
 
-IMPORTANT: Your response must be a valid JSON object starting with {{ and ending with }} and NOTHING ELSE.
+IMPORTANT: Your response must be a valid JSON object and NOTHING ELSE.
 """
     return extraction_prompt
